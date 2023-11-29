@@ -7,6 +7,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.StrictMode;
 import android.view.View;
@@ -34,16 +38,30 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 import okio.BufferedSink;
 
-public class MainActivity extends AppCompatActivity {
-    private final int studentId = 9;
-    private final String[] sensors = { "TEMPERATURE", "LIGHT", "GAS", "NOISE", "DOOR"};
+public class MainActivity extends AppCompatActivity implements SensorEventListener {
+    private final String[] sensors = { "TEMPERATURE", "LIGHT", "PRESSURE", "PROXIMITY"};
+    private SensorManager sensorManager;
+    private Sensor sensor;
 
-    private String selectedSensor = "TEMPERATURE";
+    private double value = 0;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        sensor = sensorManager.getDefaultSensor(Sensor.TYPE_AMBIENT_TEMPERATURE);
+        sensorManager.registerListener((SensorEventListener) this,
+                sensorManager.getDefaultSensor(Sensor.TYPE_AMBIENT_TEMPERATURE),
+                SensorManager.SENSOR_DELAY_UI);
+        sensorManager.registerListener((SensorEventListener) this,
+                sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT),
+                SensorManager.SENSOR_DELAY_UI);
+        sensorManager.registerListener((SensorEventListener) this,
+                sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE),
+                SensorManager.SENSOR_DELAY_UI);
+        sensorManager.registerListener((SensorEventListener) this,
+                sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY),
+                SensorManager.SENSOR_DELAY_UI);
         Spinner spinner = findViewById(R.id.spinner);
         ArrayAdapter<String> adapter = new ArrayAdapter(this, android.R.layout.simple_spinner_item, sensors);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -52,7 +70,20 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 String item = (String)parent.getItemAtPosition(position);
-                selectedSensor = item;
+                switch (item){
+                    case "TEMPERATURE":
+                        sensor = sensorManager.getDefaultSensor(Sensor.TYPE_AMBIENT_TEMPERATURE);
+                        break;
+                    case "LIGHT":
+                        sensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
+                        break;
+                    case "PRESSURE":
+                        sensor = sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE);
+                        break;
+                    case "PROXIMITY":
+                        sensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
+                        break;
+                }
             }
 
             @Override
@@ -86,12 +117,11 @@ public class MainActivity extends AppCompatActivity {
         SQLiteDatabase db = databaseHelper.getReadableDatabase();
         OkHttpClient okHttpClient = new OkHttpClient();
         EditText editText = (EditText)findViewById(R.id.editText);
-        String url = editText.getText().toString() + studentId;
+        String url = editText.getText().toString();
         System.out.println("try to send request by url = "+url);
-        Random random = new Random();
-        double value = random.nextDouble();
-        String sensor = selectedSensor;
-        RequestBodyDTO requestBodyDTO = new RequestBodyDTO(value, sensor);
+        String sensorName = sensor.getName();
+        System.out.println(value + " " + sensorName);
+        RequestBodyDTO requestBodyDTO = new RequestBodyDTO(value, sensorName);
         Gson gson = new Gson();
         Request request = new Request.Builder()
                 .url(url)
@@ -100,7 +130,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             Response execute = okHttpClient.newCall(request).execute();
             System.out.println(execute.body().string() + "; code = " + execute.code());
-            databaseHelper.insert(db, value, sensor);
+            databaseHelper.insert(db, value, sensorName);
             Cursor  userCursor =  db.rawQuery("select * from "+ DataBaseHelper.TABLE, null);
             while(userCursor.getCount() > 100) {
                 databaseHelper.delete(db);
@@ -111,5 +141,17 @@ public class MainActivity extends AppCompatActivity {
             System.out.println("Bad response. Some errors");
             //throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        if (event.sensor.getType() == sensor.getType()) {
+            value = event.values[0];
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
     }
 }
