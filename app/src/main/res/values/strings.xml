@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Requester</string>
+    <string name="back">back</string>
+    <string name="send">send</string>
+    <string name="chart">chart</string>
+    <string name="link">https://remoteservice.onrender.com/v2/</string>
+</resources>
